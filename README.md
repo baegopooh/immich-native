@@ -1,18 +1,21 @@
-# Native Immich
+# Native Immich(guide to migrate from docker stack)
 
-This repository provides instructions and helper scripts to install [Immich](https://github.com/immich-app/immich) without Docker, natively.
+This repository provides instructions and helper scripts to install [Immich](https://github.com/immich-app/immich) without Docker, natively in proxmox lxc, and migrate from Immich installed with docker stack.
+(This guide is fork of [Immich Native](https://github.com/arter97/immich-native). I added some instructions to migrate from preexisting Immich and did some tweaks)
 
 ### Notes
 
- * This is tested on Ubuntu 22.04 (on both x86 and aarch64) as the host distro, but it will be similar on other distros. If you want to run this on a macOS, see [4v3ngR's unofficial macOS port](https://github.com/4v3ngR/immich-native-macos).
+ * This is tested on Debian 12.02 on x86 as the host distro, but it will be similar on other distros. 
 
  * This guide installs Immich to `/var/lib/immich`. To change it, replace it to the directory you want in this README and `install.sh`'s `$IMMICH_PATH`.
 
+ * This guid will make 2 lxc conainers, 1st one for postgresql and 2nd one for Immich service, redis and machine learning service.
+ * 
  * The [install.sh](install.sh) script currently is using Immich v1.108.0. It should be noted that due to the fast-evolving nature of Immich, the install script may get broken if you replace the `$TAG` to something more recent.
 
  * `mimalloc` is deliberately disabled as this is a native install and sharing system library makes more sense.
 
- * `pgvector` is used instead of `pgvecto.rs` that the official Immich uses to remove an additional Rust build dependency.
+ * Original Native Immich used `pgvector` instead of `pgvecto.rs(used by official Immich) to remove additional Rust build dependency. But I found it hard to change from pgvecto.rs to pgvector with pre-exiting postgresql DB. So This guide will use original pgvecto.rs
 
  * Microservice and machine-learning's host is opened to 0.0.0.0 in the default configuration. This behavior is changed to only accept 127.0.0.1 during installation. Only the main Immich service's port, 3001, is opened to 0.0.0.0.
 
@@ -20,6 +23,82 @@ This repository provides instructions and helper scripts to install [Immich](htt
 
  * JPEG XL support may differ official Immich due to base-image's dependency differences.
 
+
+## 1. Make backups
+
+ * Make backup of old Immich databse, following [Offician Immich guide](https://immich.app/docs/administration/backup-and-restore)
+
+   ``` bash
+   docker exec -t immich_postgres pg_dumpall --clean --if-exists --username=postgres | gzip > "/YOUR/PATH/OF/BACKUP/dump.sql.gz"
+   ```
+
+ * Make backup of pre-existing docker stack and Images(in case of woops moment) from following locations
+
+   UPLOAD_LOCATION/library
+   UPLOAD_LOCATION/upload
+   UPLOAD_LOCATION/profile
+
+
+## 2. Prepare seperate postgresql lxc for Immich
+
+ * Make new lxc with debian 12.02. give some core and memory for migration(2core and 16G memory was sufficient)
+ 
+ * prepare basic stuff
+   ``` bash
+   export LANGUAGE=en_US.UTF-8                   
+   export LANG=en_US.UTF-8
+   locale-gen en_US.UTF-8
+   apt update && apt upgrade -y
+   apt install sudo
+   ```
+  
+ * Install [postgresql](https://www.postgresql.org/download/linux/debian/)
+   ``` bash
+   apt install -y postgresql-common
+   /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+   apt -y install postgresql
+   ```
+
+ * Install [pgvecto.rs](https://docs.pgvecto.rs/getting-started/installation.html) It's import to install 0.2.1. version, as Immich does not support current version(0.3) as of 16th of July, 2024
+    ``` bash
+    wget https://github.com/tensorchord/pgvecto.rs/releases/download/v0.2.1/vectors-pg16_0.2.1_amd64.deb 
+    sudo apt install ./vectors-pg16_0.2.1_amd64.deb
+    ```
+
+ * Edit postgresql conf files
+    ``` bash
+    sed -i "s|listen_addresses = 'localhost'|listen_addresses = '*' |" /etc/postgresql/16/main/postgresql.conf    
+    sed -i "s|port = 5432|port = YOUR_POSTGRES_PORT|" /etc/postgresql/16/main/postgresql.conf
+    sed -i '/log_destination/s/^#//g'  /etc/postgresql/16/main/postgresql.conf
+    sed -i '/logging_collector/^#//g'  /etc/postgresql/16/main/postgresql.conf
+    sed -i '/log_directory/^#//g'  /etc/postgresql/16/main/postgresql.conf
+    sed -i '/log_filename/^#//g'  /etc/postgresql/16/main/postgresql.conf
+    sed -i '/log_file_mode/^#//g'  /etc/postgresql/16/main/postgresql.conf
+    sed -i '/log_rotation_age/^#//g'  /etc/postgresql/16/main/postgresql.conf
+    sed -i '/log_rotation_size/^#//g'  /etc/postgresql/16/main/postgresql.conf
+    sed -i "s|#shared_preload_libraries = ''|shared_preload_libraries = 'vectors.so'|" /etc/postgresql/16/main/postgresql.conf
+    echo host        immich,postgres        postgres        YOUR_IMMICHSERVER_IP/32        scram-sha-256 | tee -a /etc/postgresql/16/main/pg_hba.conf
+    systemctl restart postgresql
+    ```
+
+ * Restore Immich DB
+    ``` bash
+     gunzip < "/YOUR/PATH/OF/BACKUP/dump.sql.gz" | sed "s/SELECT pg_catalog.set_config('search_path', '', false);/SELECT pg_catalog.set_config('search_path', 'public, p
+g_catalog', true);/g" | sudo -u postgres psql   
+    ```
+
+ * Test new DB
+   At immich docker stack, add enviorment variable "DBURL" with value of "postgresql://YOUR_DB_ID:YOUR_DB_PASSWD@YOUR_NEW_POSTGRESQL_SERVER_IP:YOUR_POSTGRES_PORT/immich"
+
+   Update stack, and immich should work with new DB(if not, check docker container logs and db logs(at /var/log/postgresql/16/main/log)
+
+
+## 3. Prepare Immich lxc
+
+ * Make new lxc
+
+ todo from here.
+ *  
 ## 1. Install dependencies
 
  * [Node.js](https://github.com/nodesource/distributions)
