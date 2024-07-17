@@ -143,7 +143,7 @@ Why?
    export LC_ALL=en_US.UTF-8
    locale-gen en_US.UTF-8
    dpkg-reconfigure locales
-   apt update && apt upgrade -y && apt install sudo curl git python3-venv python3-dev -y
+   apt update && apt upgrade -y && apt install sudo curl -y
    ```
 
  *  Install dependencies
@@ -174,13 +174,10 @@ Why?
    mv ffmpeg-git-20240629-amd64-static/ffmpeg ffmpeg-git-20240629-amd64-static/ffprobe /usr/bin/
    ```
 
+ * Other APT packages
 
-
-
-### Other APT packages
-
-``` bash
-sudo apt install --no-install-recommends \
+   ``` bash
+   sudo apt install --no-install-recommends \
         python3-venv \
         python3-dev \
         uuid-runtime \
@@ -209,16 +206,17 @@ sudo apt install --no-install-recommends \
         libfile-slurper-perl \
         liblcms2-2 \
         wget
-```
+   ```
 
-A separate Python's virtualenv will be stored to `/var/lib/immich`.
+   A separate Python's virtualenv will be stored to `/var/lib/immich`.
 
-## 2. Prepare `immich` user
+## 4. Prepare `immich` user in immich lxc
 
 This guide isolates Immich to run on a separate `immich` user.
 
-This provides basic permission isolation and protection.
+This provides basic permission isolation and protection.(ignore home directory error message)
 
+@ immich lxc
 ``` bash
 
 sudo adduser \
@@ -234,26 +232,26 @@ sudo chmod 700 /var/lib/immich
 ```
 
 
-## 4. Prepare `env`
+## 5. Prepare `env`
 
-Save the [env](env) file to `/var/lib/immich`, and configure on your own. especially db-related stuff
-
-
-
+Save the 'env' file to `/var/lib/immich`, and configure on your own. especially db-related stuff
 
 ``` bash
 wget https://github.com/baegopooh/immich-native/raw/master/env
-sudo cp env /var/lib/immich
+sudo mv env /var/lib/immich
 sudo chown immich:immich /var/lib/immich/env
+nano /var/lib/immich/env
 ```
 
-## 5. Build and install Immich
+## 6. Build and install Immich
 
 @ immich lxc
 ``` bash
    wget https://github.com/baegopooh/immich-native/raw/master/install.sh
-   chmod +x ./install.sh
-   sudo ./install.sh
+   mv install.sh /tmp
+   chown immich:immich /tmp/install.sh
+   chmod +x /tmp/install.sh
+   sudo /tmp/install.sh
    ```
 (Anytime Immich is updated, all you have to do is run it again.)
 
@@ -269,11 +267,14 @@ In summary, the `install.sh` script does the following:
 
   * Limits listening host from 0.0.0.0 to 127.0.0.1. If you do not want this to happen (make sure you fully understand the security risks!), comment out the `sed` command in `install.sh`'s "Use 127.0.0.1" part.
 
-## 6. Install systemd services
+## 7. Install systemd services
 
 Because the install script switches to the immich user during installation, you must install systemd services manually:
 
 ``` bash
+wget https://github.com/baegopooh/immich-native/raw/master/immich.service
+wget https://github.com/baegopooh/immich-native/raw/master/immich-microservices.service
+wget https://github.com/baegopooh/immich-native/raw/master/immich-machine-learning.service
 sudo cp immich*.service /etc/systemd/system/
 sudo systemctl daemon-reload
 for i in immich*.service; do
