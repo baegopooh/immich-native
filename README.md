@@ -2,15 +2,19 @@
 
 This repository provides instructions and helper scripts to install [Immich](https://github.com/immich-app/immich) without Docker, natively in proxmox lxc, and migrate from Immich installed with docker stack.
 (This guide is fork of [Immich Native](https://github.com/arter97/immich-native). I added some instructions to migrate from preexisting Immich and did some tweaks)
+Why? 
+1st. Becuase I don't like overhead of VM running docker in proxmox. 
+2nd. I tried docker in LXC setting, but it's officially not recommend by proxmox, and i see some wiered warning messsages in systemjournal.
+3rd. my LXC running docker became too big to handle(backup replication etc). And i generally like idea of splitting data and app. 
 
 ### Notes
 
- * This is tested on Debian 12.02 on x86 as the host distro, but it will be similar on other distros. 
+ * This is tested on Debian 12.02 on x86 as the host distro. 
 
  * This guide installs Immich to `/var/lib/immich`. To change it, replace it to the directory you want in this README and `install.sh`'s `$IMMICH_PATH`.
 
  * This guid will make 2 lxc conainers, 1st one for postgresql and 2nd one for Immich service, redis and machine learning service.
- * 
+  
  * The [install.sh](install.sh) script currently is using Immich v1.108.0. It should be noted that due to the fast-evolving nature of Immich, the install script may get broken if you replace the `$TAG` to something more recent.
 
  * `mimalloc` is deliberately disabled as this is a native install and sharing system library makes more sense.
@@ -54,41 +58,46 @@ This repository provides instructions and helper scripts to install [Immich](htt
 
 ## 2. Prepare seperate postgresql lxc for Immich
 
- * Make new lxc with debian 12.02. give some core and memory for migration(2core and 16G memory was sufficient)
+ * Make new lxc with debian 12.02. give some core and memory for migration(2core and 16G memory was sufficient). you can resude core and memory after migration.
    ```bash
    @pve shell
    sqldumppath=YOUR_SQL_DUMP_PATH_IN_HOST(if using bindmount)   
    
    pct create 208 /var/lib/vz/template/cache/debian-12-standard_12.2-1_amd64.tar.zst --ostype debian --hostname immichpostgres --cores 2 --memory 16384 --features nesting=1 --storage local-zfs --mp0 $sqldumppath,mp=/mnt/sqldump --net0 name=eth0,bridge=vmbr0,ip=dhcp --start 1 --rootfs local-zfs:8 --unprivileged 1 --timezone host --password YOUR_SUPER_SECURE_PASSWORD
    ```  
- * prepare basic stuff
+ * prepare basic stuff (after dpkg-reconfigure, select en_US.UTF-8
    ``` bash
    @pve shell
    pct enter 208
-   export LANGUAGE=en_US.UTF-8                   
+   export LANGUAGE=en_US.UTF-8
    export LANG=en_US.UTF-8
+   export LC_ALL=en_US.UTF-8
    locale-gen en_US.UTF-8
+   dpkg-reconfigure locales
    apt update && apt upgrade -y && apt install sudo
    ```
   
  * Install [postgresql](https://www.postgresql.org/download/linux/debian/)
+   @at newly created postgresql lxc
    ``` bash
    apt install -y postgresql-common && /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
    apt -y install postgresql
    ```
 
  * Install [pgvecto.rs](https://docs.pgvecto.rs/getting-started/installation.html) It's import to install 0.2.1. version, as Immich does not support current version(0.3) as of 16th of July, 2024
+
+    @at newly created postgresql lxc
     ``` bash
-    wget https://github.com/tensorchord/pgvecto.rs/releases/download/v0.2.1/vectors-pg16_0.2.1_amd64.deb 
-    sudo apt install ./vectors-pg16_0.2.1_amd64.deb
+    wget https://github.com/tensorchord/pgvecto.rs/releases/download/v0.2.1/vectors-pg16_0.2.1_amd64.deb &&     sudo apt install ./vectors-pg16_0.2.1_amd64.deb
     ```
 
  * Edit postgresql conf files
-    ``` bash
-    @at newly created postgresql lxc
+
+   @at newly created postgresql lxc
+   ``` bash    
     POSTGRES_PORT=YOUR_POSTGRES_PORT
-    
-    sed -i '/listen_addresses/s/^#//'  /etc/postgresql/16/main/postgresql.conf
+    IMMICHIP=YOUR_IMMICHSERVER_IP
+    sed -i "s|#listen_address = "localhost"|listen_address = "*"|" /etc/postgresql/16/main/postgresql.conf
     sed -i "s|port = 5432|port = $POSTGRES_PORT|" /etc/postgresql/16/main/postgresql.conf
     sed -i "s|#logging_collector = off|logging_collector = on|" /etc/postgresql/16/main/postgresql.conf
     sed -i '/log_destination/s/^#//'  /etc/postgresql/16/main/postgresql.conf    
@@ -98,55 +107,72 @@ This repository provides instructions and helper scripts to install [Immich](htt
     sed -i '/log_rotation_age/s/^#//'  /etc/postgresql/16/main/postgresql.conf
     sed -i '/log_rotation_size/s/^#//'  /etc/postgresql/16/main/postgresql.conf
     sed -i "s|#shared_preload_libraries = ''|shared_preload_libraries = 'vectors.so'|" /etc/postgresql/16/main/postgresql.conf
-    echo host        immich,postgres        postgres        YOUR_IMMICHSERVER_IP/32        scram-sha-256 | tee -a /etc/postgresql/16/main/pg_hba.conf
+    echo host        immich,postgres        postgres        $IMMICHIP/32        scram-sha-256 | tee -a /etc/postgresql/16/main/pg_hba.conf
     systemctl restart postgresql
     ```
 
  * Restore Immich DB
-    ``` bash
+    
     @at newly created postgresql lxc
+    ``` bash
     BACKUP_PATH=/mnt/sqldump
-    gunzip < $BACKUP_PATH/dump.sql.gz | sed "s/SELECT pg_catalog.set_config('search_path', '', false);/SELECT pg_catalog.set_config('search_path', 'public, p
-g_catalog', true);/g" | sudo -u postgres psql   
+    gunzip < $BACKUP_PATH/dump.sql.gz | sed "s/SELECT pg_catalog.set_config('search_path', '', false);/SELECT pg_catalog.set_config('search_path', 'public, pg_catalog', true);/g" | sudo -u postgres psql   
     ```
 
  * Test new DB
    At immich docker stack, add enviorment variable "DBURL" with value of "postgresql://YOUR_DB_ID:YOUR_DB_PASSWD@YOUR_NEW_POSTGRESQL_SERVER_IP:YOUR_POSTGRES_PORT/immich"
 
-   Update stack, and immich should work with new DB(if not, check docker container logs and db logs(at /var/log/postgresql/16/main/log)
+   Update stack, and immich should work with new DB(if not, check docker container logs and db logs(at /var/lib/postgresql/16/main/log), and do trouble shoot.
 
 
 ## 3. Prepare Immich lxc
 
+
  * Make new lxc
+   @pve shell
+   ``` bash
+   IMMICHPATH=YOUR_IMAGE_DATA_PATH_IN_HOST(if using bindmount)
+   pct create 209 /var/lib/vz/template/cache/debian-12-standard_12.2-1_amd64.tar.zst --ostype debian --hostname immich --cores 2 --memory 16384 --features nesting=1 --storage local-zfs --mp0 $IMMICHPATH,mp=/mnt/immich --net0 name=eth0,bridge=vmbr0,ip=dhcp --start 1 --rootfs local-zfs:8 --unprivileged 1 --timezone host --password YOUR_SUPER_SECURE_PASSWORD
 
- todo from here.
- *  
-## 1. Install dependencies
+  * prepare basic stuff (after dpkg-reconfigure, select en_US.UTF-8
+   ``` bash
+   @pve shell
+   pct enter 209
+   export LANGUAGE=en_US.UTF-8
+   export LANG=en_US.UTF-8
+   export LC_ALL=en_US.UTF-8
+   locale-gen en_US.UTF-8
+   dpkg-reconfigure locales
+   apt update && apt upgrade -y && apt install sudo curl git python3-venv python3-dev -y
+   ```
 
- * [Node.js](https://github.com/nodesource/distributions)
+ *  Install dependencies
 
- * [PostgreSQL](https://www.postgresql.org/download/linux)
+ * [Node.js v20](https://github.com/nodesource/distributions)
+
+   @immich lxc
+   ``` bash 
+   curl -fsSL https://deb.nodesource.com/setup_20.x -o nodesource_setup.sh
+   bash nodesource_setup.sh
+   apt-get install -y nodejs
+   ```
 
  * [Redis](https://redis.io/docs/install/install-redis/install-redis-on-linux)
 
-As the time of writing, Node.js v20 LTS, PostgreSQL 16 and Redis 7.2.4 was used.
+   @immich lxc
+   ``` bash 
+   apt install redis -y
+   ```
 
- * [pgvector](https://github.com/pgvector/pgvector)
 
-pgvector is included in the official PostgreSQL's APT repository:
+ * [FFmpeg Static Builds](https://johnvansickle.com/ffmpeg) 
 
-``` bash
-sudo apt install postgresql(-16)-pgvector
-```
-
- * [FFmpeg](https://github.com/FFmpeg/FFmpeg)
-
-Immich uses FFmpeg to process media.
-
-FFmpeg provided by the distro is typically too old.
-Either install it from [jellyfin](https://github.com/jellyfin/jellyfin-ffmpeg/releases)
-or use [FFmpeg Static Builds](https://johnvansickle.com/ffmpeg) and install it to `/usr/bin`.
+   @immich lxc
+   ``` bash 
+   wget https://johnvansickle.com/ffmpeg/builds/ffmpeg-git-amd64-static.tar.xz
+   tar xvf ffmpeg-git-amd64-static.tar.xz
+   mv ffmpeg-git-20240629-amd64-static/ffmpeg ffmpeg-git-20240629-amd64-static/ffprobe /usr/bin/
+   ```
 
 ### Other APT packages
 
