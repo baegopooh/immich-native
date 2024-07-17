@@ -174,6 +174,9 @@ Why?
    mv ffmpeg-git-20240629-amd64-static/ffmpeg ffmpeg-git-20240629-amd64-static/ffprobe /usr/bin/
    ```
 
+
+
+
 ### Other APT packages
 
 ``` bash
@@ -217,6 +220,7 @@ This guide isolates Immich to run on a separate `immich` user.
 This provides basic permission isolation and protection.
 
 ``` bash
+
 sudo adduser \
   --home /var/lib/immich/home \
   --shell=/sbin/nologin \
@@ -229,37 +233,29 @@ sudo chown immich:immich /var/lib/immich
 sudo chmod 700 /var/lib/immich
 ```
 
-## 3. Prepare PostgreSQL DB
-
-Create a strong random string to be used with PostgreSQL immich database.
-
-You need to save this and write to the `env` file later.
-
-``` bash
-sudo -u postgres psql
-postgres=# create database immich;
-postgres=# create user immich with encrypted password 'YOUR_STRONG_RANDOM_PW';
-postgres=# grant all privileges on database immich to immich;
-postgrse=# ALTER USER immich WITH SUPERUSER;
-postgres=# \q
-```
 
 ## 4. Prepare `env`
 
-Save the [env](env) file to `/var/lib/immich`, and configure on your own.
+Save the [env](env) file to `/var/lib/immich`, and configure on your own. especially db-related stuff
 
-You'll only have to set `DB_PASSWORD`.
+
+
 
 ``` bash
+wget https://github.com/baegopooh/immich-native/raw/master/env
 sudo cp env /var/lib/immich
 sudo chown immich:immich /var/lib/immich/env
 ```
 
 ## 5. Build and install Immich
 
-Clone this repository to somewhere anyone can access (like /tmp) and run `install.sh` as root.
-
-Anytime Immich is updated, all you have to do is run it again.
+@ immich lxc
+``` bash
+   wget https://github.com/baegopooh/immich-native/raw/master/install.sh
+   chmod +x ./install.sh
+   sudo ./install.sh
+   ```
+(Anytime Immich is updated, all you have to do is run it again.)
 
 In summary, the `install.sh` script does the following:
 
