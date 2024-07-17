@@ -289,31 +289,3 @@ Immich will additionally use localhost's 3002 and 3003 ports.
 
 Please add firewall rules and apply https proxy and secure your Immich instance.
 
-## Uninstallation
-
-``` bash
-# Run as root!
-
-# Remove Immich systemd services
-for i in immich*.service; do
-  systemctl stop $i
-  systemctl disable $i
-done
-rm /etc/systemd/system/immich*.service
-systemctl daemon-reload
-
-# Remove Immich files
-rm -rf /var/lib/immich
-
-# Delete immich user
-deluser immich
-
-# Remove Immich DB
-sudo -u postgres psql
-postgres=# drop user immich;
-postgres=# drop database immich;
-postgres=# \q
-
-# Optionally remove dependencies
-# Review /var/log/apt/history.log and remove packages you've installed
-```
