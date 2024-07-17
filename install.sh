@@ -10,7 +10,7 @@ APP=$IMMICH_PATH/app
 if [[ "$USER" != "immich" ]]; then
   # Disable systemd services, if installed
   (
-    for i in immich*.service; do
+    for i in immich.service immich-microservices.service immich-machine-learning.service; do
       systemctl stop $i && \
         systemctl disable $i && \
         rm /etc/systemd/system/$i &&
