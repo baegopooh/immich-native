@@ -116,9 +116,12 @@ cd $APP
 npm install sharp
 
 # Setup upload directory
-mkdir -p $IMMICH_PATH/upload
-ln -s $IMMICH_PATH/upload $APP/
-ln -s $IMMICH_PATH/upload $APP/machine-learning/
+#mkdir -p $IMMICH_PATH/upload
+#ln -s $IMMICH_PATH/upload $APP/
+#ln -s $IMMICH_PATH/upload $APP/machine-learning/
+ln -s /mnt/immich $IMMICH_PATH/upload
+ln -s /mnt/immich $APP/upload
+ln -s /mnt/immich $APP/machine-learning/upload
 
 # Custom start.sh script
 cat <<EOF > $APP/start.sh
