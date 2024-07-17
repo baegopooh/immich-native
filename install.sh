@@ -10,7 +10,7 @@ APP=$IMMICH_PATH/app
 if [[ "$USER" != "immich" ]]; then
   # Disable systemd services, if installed
   (
-    for i in immich.service immich-microservices.service immich-machine-learning.service; do
+    for i in immich*.service; do
       systemctl stop $i && \
         systemctl disable $i && \
         rm /etc/systemd/system/$i &&
@@ -48,7 +48,7 @@ rm -rf .git
 
 # Use 127.0.0.1
 find . -type f \( -name '*.ts' -o -name '*.js' \) -exec grep app.listen {} + | \
-  sed 's/.*app.listen//' | grep -v '()' | grep '^(' | \
+#  sed 's/.*app.listen//' | grep -v '()' | grep '^(' | \
   tr -d "[:blank:]" | awk -F"[(),]" '{print $2}' | sort | uniq | while read port; do
     find . -type f \( -name '*.ts' -o -name '*.js' \) -exec sed -i -e "s@app.listen(${port})@app.listen(${port}, '127.0.0.1')@g" {} +
 done
