@@ -2,7 +2,6 @@
 Description=immich microservices
 Documentation=https://github.com/immich-app/immich
 Requires=redis-server.service
-Requires=postgresql.service
 
 [Service]
 User=immich
