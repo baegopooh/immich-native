@@ -44,7 +44,7 @@ Why?
  * Make backup of old Immich databse, following [Offician Immich guide](https://immich.app/docs/administration/backup-and-restore) use [bind mount](https://github.com/loeeeee/loe-handbook-of-gpu-in-lxc/blob/main/src/mount-host-volume.md) for convenience
 
    ``` bash
-   docker exec -t immich_postgres pg_dumpall --clean --if-exists --username=$DB_ID | gzip > $BACKUP_PATH/dump.sql.gz"
+   docker exec -t immich_postgres pg_dumpall --clean --if-exists --username=$DB_ID | gzip > $BACKUP_PATH/dump.sql.gz
    ```
 
  * Make backup of pre-existing docker stack and Images(in case of woops moment) from following locations
@@ -58,12 +58,12 @@ Why?
 
 ## 2. Prepare seperate postgresql lxc for Immich
 
- * Make new lxc with debian 12.02. give some core and memory for migration(2core and 16G memory was sufficient). you can resude core and memory after migration.
+ * Make new lxc with debian 12.02. give some core and memory for migration(2core and 16G memory was sufficient). you can reduce core and memory after migration.
    ```bash
    @pve shell
    sqldumppath=YOUR_SQL_DUMP_PATH_IN_HOST(if using bindmount)   
    
-   pct create 208 /var/lib/vz/template/cache/debian-12-standard_12.2-1_amd64.tar.zst --ostype debian --hostname immichpostgres --cores 2 --memory 16384 --features nesting=1 --storage local-zfs --mp0 $sqldumppath,mp=/mnt/sqldump --net0 name=eth0,bridge=vmbr0,ip=dhcp --start 1 --rootfs local-zfs:8 --unprivileged 1 --timezone host --password YOUR_SUPER_SECURE_PASSWORD
+   pct create 208 /var/lib/vz/template/cache/debian-12-standard_12.2-1_amd64.tar.zst --ostype debian --hostname immichpostgres --cores 2 --memory 16384 --features nesting=1 --storage local-zfs --net0 name=eth0,bridge=vmbr0,ip=dhcp --start 1 --rootfs local-zfs:8 --unprivileged 1 --timezone host --mp0 $sqldumppath,mp=/mnt/sqldump --password YOUR_SUPER_SECURE_PASSWORD 
    ```  
  * prepare basic stuff (after dpkg-reconfigure, select en_US.UTF-8
    ``` bash
@@ -120,7 +120,7 @@ Why?
     ```
 
  * Test new DB
-   At immich docker stack, add enviorment variable "DBURL" with value of "postgresql://YOUR_DB_ID:YOUR_DB_PASSWD@YOUR_NEW_POSTGRESQL_SERVER_IP:YOUR_POSTGRES_PORT/immich"
+   At immich docker stack, add enviorment variable "DB_URL" with value of "postgresql://YOUR_DB_ID:YOUR_DB_PASSWD@YOUR_NEW_POSTGRESQL_SERVER_IP:YOUR_POSTGRES_PORT/immich"
 
    Update stack, and immich should work with new DB(if not, check docker container logs and db logs(at /var/lib/postgresql/16/main/log), and do trouble shoot.
 
@@ -132,7 +132,7 @@ Why?
    @pve shell
    ``` bash
    IMMICHPATH=YOUR_IMAGE_DATA_PATH_IN_HOST(if using bindmount)
-   pct create 209 /var/lib/vz/template/cache/debian-12-standard_12.2-1_amd64.tar.zst --ostype debian --hostname immich --cores 2 --memory 16384 --features nesting=1 --storage local-zfs --mp0 $IMMICHPATH,mp=/mnt/immich --net0 name=eth0,bridge=vmbr0,ip=dhcp --start 1 --rootfs local-zfs:8 --unprivileged 1 --timezone host --password YOUR_SUPER_SECURE_PASSWORD
+   pct create 209 /var/lib/vz/template/cache/debian-12-standard_12.2-1_amd64.tar.zst --ostype debian --hostname immich --cores 2 --memory 16384 --features nesting=1 --storage local-zfs --net0 name=eth0,bridge=vmbr0,ip=dhcp --start 1 --rootfs local-zfs:8 --unprivileged 1 --timezone host --mp0 $IMMICHPATH,mp=/mnt/immich --password YOUR_SUPER_SECURE_PASSWORD
 
   * prepare basic stuff (after dpkg-reconfigure, select en_US.UTF-8
    ``` bash
