@@ -132,7 +132,7 @@ Why?
    @pve shell
    ``` bash
    IMMICHPATH=YOUR_IMAGE_DATA_PATH_IN_HOST(if using bindmount)
-   pct create 209 /var/lib/vz/template/cache/debian-12-standard_12.2-1_amd64.tar.zst --ostype debian --hostname immich --cores 2 --memory 16384 --features nesting=1 --storage local-zfs --net0 name=eth0,bridge=vmbr0,ip=dhcp --start 1 --rootfs local-zfs:8 --unprivileged 1 --timezone host --mp0 $IMMICHPATH,mp=/mnt/immich --password YOUR_SUPER_SECURE_PASSWORD
+   pct create 209 /var/lib/vz/template/cache/debian-12-standard_13.1-2_amd64.tar.zst --ostype debian --hostname immich --cores 2 --memory 16384 --features nesting=1 --storage local-zfs --net0 name=eth0,bridge=vmbr0,ip=dhcp,hwaddr=BC:24:11:AA:AA:4F --start 1 --rootfs local-zfs:8 --unprivileged 1 --timezone host --mp0 $IMMICHPATH,mp=/mnt/immich --password YOUR_SUPER_SECURE_PASSWORD
 
   * prepare basic stuff (after dpkg-reconfigure, select en_US.UTF-8
    ``` bash
